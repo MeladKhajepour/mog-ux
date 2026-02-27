@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.mem0_store/
+.claude/
+uploads/
+playbook.json

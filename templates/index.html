@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina UX — Upload Session</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 2rem 3rem;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        header p {
+            color: #8888aa;
+            margin-top: 0.3rem;
+            font-size: 0.9rem;
+        }
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #44cc88;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+        }
+        .upload-card {
+            background: #12121f;
+            border: 2px dashed #2a2a4a;
+            border-radius: 16px;
+            padding: 3rem 4rem;
+            text-align: center;
+            max-width: 540px;
+            width: 100%;
+            transition: border-color 0.3s;
+        }
+        .upload-card:hover { border-color: #4a4a7a; }
+        .upload-card h2 {
+            font-size: 1.4rem;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        .upload-card p {
+            color: #777;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        .file-input-wrapper {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .file-input-wrapper input[type="file"] {
+            width: 100%;
+            padding: 1rem;
+            background: #0a0a15;
+            border: 1px solid #2a2a3a;
+            border-radius: 10px;
+            color: #aaa;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .file-input-wrapper input[type="file"]::file-selector-button {
+            background: #7c7cff;
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 1rem;
+        }
+        .file-input-wrapper input[type="file"]::file-selector-button:hover {
+            background: #6a6aee;
+        }
+        button[type="submit"] {
+            background: linear-gradient(135deg, #7c7cff, #6a6aee);
+            color: #fff;
+            border: none;
+            padding: 0.8rem 2.5rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            width: 100%;
+        }
+        button[type="submit"]:hover { opacity: 0.9; }
+        button[type="submit"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #44cc8822;
+            border: 1px solid #44cc8844;
+            border-radius: 8px;
+            color: #44cc88;
+            font-size: 0.9rem;
+        }
+        .nav-link {
+            margin-top: 1.5rem;
+        }
+        .nav-link a {
+            color: #7c7cff;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .nav-link a:hover { text-decoration: underline; }
+        .formats {
+            color: #555;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        /* --- Progress Panel --- */
+        .progress-panel {
+            display: none;
+            margin-top: 1.5rem;
+            text-align: left;
+            background: #0a0a15;
+            border: 1px solid #2a2a3a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .progress-header {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: #12121f;
+            border-bottom: 1px solid #2a2a3a;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #ccc;
+        }
+        .progress-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffaa33;
+            margin-right: 0.6rem;
+            animation: pulse 1.2s infinite;
+        }
+        .progress-indicator.done {
+            background: #44cc88;
+            animation: none;
+        }
+        .progress-log {
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 0.5rem 0;
+        }
+        .progress-entry {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.4rem 1rem;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #aaa;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .progress-entry .stage-icon {
+            flex-shrink: 0;
+            width: 20px;
+            text-align: center;
+            margin-right: 0.5rem;
+        }
+        .progress-entry .msg { flex: 1; }
+        .progress-entry .ts {
+            flex-shrink: 0;
+            margin-left: 0.8rem;
+            color: #555;
+            font-size: 0.7rem;
+        }
+        .progress-entry.friction_spike {
+            color: #ff6666;
+            font-weight: 600;
+        }
+        .progress-entry.session_done {
+            color: #44cc88;
+            font-weight: 600;
+        }
+        .progress-entry .detail {
+            display: block;
+            color: #666;
+            font-size: 0.75rem;
+            margin-top: 2px;
+            font-style: italic;
+        }
+        .progress-done-link {
+            display: none;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid #2a2a3a;
+            text-align: center;
+        }
+        .progress-done-link a {
+            color: #7c7cff;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .progress-done-link a:hover { text-decoration: underline; }
+
+        /* --- Upload Progress Bar --- */
+        .upload-bar-wrapper {
+            display: none;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .upload-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 0.4rem;
+        }
+        .upload-bar-track {
+            width: 100%;
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .upload-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #7c7cff, #44cc88);
+            border-radius: 3px;
+            transition: width 0.15s ease;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span class="pulse"></span> Lumina UX</h1>
+        <p>Upload a user testing session to analyze</p>
+    </header>
+    <main>
+        <div class="upload-card">
+            <h2>Upload Screen Recording</h2>
+            <p>Upload a video with mic audio from a user testing session.<br>
+               The system will detect frustration moments and build your playbook.</p>
+
+            <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
+                <div class="file-input-wrapper">
+                    <input type="file" name="file" accept="video/mp4,video/webm,video/*" required id="file-input">
+                </div>
+                <p class="formats">Supported: MP4, WebM, MOV</p>
+                <button type="submit" id="submit-btn">Upload & Analyze</button>
+            </form>
+
+            <div class="upload-bar-wrapper" id="upload-bar-wrapper">
+                <div class="upload-bar-label">
+                    <span id="upload-bar-text">Uploading...</span>
+                    <span id="upload-bar-pct">0%</span>
+                </div>
+                <div class="upload-bar-track">
+                    <div class="upload-bar-fill" id="upload-bar-fill"></div>
+                </div>
+            </div>
+
+            <div class="progress-panel" id="progress-panel">
+                <div class="progress-header">
+                    <div class="progress-indicator" id="progress-indicator"></div>
+                    <span id="progress-title">Processing...</span>
+                </div>
+                <div class="progress-log" id="progress-log"></div>
+                <div class="progress-done-link" id="progress-done-link">
+                    <a href="/dashboard">View Designer's Brief Dashboard &rarr;</a>
+                </div>
+            </div>
+
+            {% if message %}
+            <div class="message">{{ message }}</div>
+            {% endif %}
+
+            <div class="nav-link">
+                <a href="/dashboard">View Designer's Brief Dashboard &rarr;</a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const STAGE_ICONS = {
+            upload: '📁', audio_extract: '🎵', audio_split: '✂️',
+            analyzing_chunk: '🔍', voice_analysis: '🗣️', friction_spike: '⚡',
+            visual_analysis: '👁️', event_queued: '📦', reflecting: '🧠',
+            curating: '📋', learning: '💾', session_done: '✅',
+        };
+
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const fileInput = document.getElementById('file-input');
+            if (!fileInput.files.length) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+
+            // Show progress panel and connect SSE before uploading
+            const panel = document.getElementById('progress-panel');
+            const log = document.getElementById('progress-log');
+            panel.style.display = 'block';
+
+            const evtSource = new EventSource('/progress');
+            evtSource.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                addEntry(data);
+                if (data.stage === 'session_done') {
+                    document.getElementById('progress-indicator').classList.add('done');
+                    document.getElementById('progress-title').textContent = 'Complete';
+                    document.getElementById('progress-done-link').style.display = 'block';
+                    evtSource.close();
+                }
+            };
+
+            // Upload via XHR for progress tracking
+            const barWrapper = document.getElementById('upload-bar-wrapper');
+            const barFill = document.getElementById('upload-bar-fill');
+            const barPct = document.getElementById('upload-bar-pct');
+            const barText = document.getElementById('upload-bar-text');
+            barWrapper.style.display = 'block';
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload');
+            xhr.setRequestHeader('Accept', 'application/json');
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    barFill.style.width = pct + '%';
+                    barPct.textContent = pct + '%';
+                }
+            };
+            xhr.onload = function() {
+                barFill.style.width = '100%';
+                barPct.textContent = '100%';
+                barText.textContent = 'Upload complete';
+                btn.textContent = 'Processing...';
+            };
+            xhr.onerror = function() {
+                barText.textContent = 'Upload failed';
+                btn.textContent = 'Upload failed';
+                btn.disabled = false;
+            };
+            xhr.send(formData);
+        });
+
+        function addEntry(data) {
+            const log = document.getElementById('progress-log');
+            const div = document.createElement('div');
+            div.className = 'progress-entry ' + data.stage;
+
+            const icon = STAGE_ICONS[data.stage] || '•';
+            const time = new Date(data.time * 1000).toLocaleTimeString();
+            let detail = data.detail ? `<span class="detail">"${data.detail}"</span>` : '';
+
+            div.innerHTML = `<span class="stage-icon">${icon}</span><span class="msg">${data.message}${detail}</span><span class="ts">${time}</span>`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html>

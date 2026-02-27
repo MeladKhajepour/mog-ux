@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina UX — Memory Store</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 2rem 3rem;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        header p {
+            color: #8888aa;
+            margin-top: 0.3rem;
+            font-size: 0.9rem;
+        }
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #44cc88;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .nav {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        .nav a {
+            color: #7c7cff;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .nav a:hover { text-decoration: underline; }
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+        .stat {
+            background: rgba(255,255,255,0.05);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        .stat strong { color: #7c7cff; }
+        main { padding: 2rem 3rem; }
+        .memory-card {
+            background: #12121f;
+            border: 1px solid #2a2a3a;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 0.8rem;
+            transition: border-color 0.2s;
+        }
+        .memory-card:hover { border-color: #4a4a7a; }
+        .memory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .memory-type {
+            flex-shrink: 0;
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .type-insight { background: #7c7cff22; color: #7c7cff; border: 1px solid #7c7cff44; }
+        .type-session_summary { background: #44cc8822; color: #44cc88; border: 1px solid #44cc8844; }
+        .type-default { background: #ffaa2222; color: #ffaa22; border: 1px solid #ffaa2244; }
+        .memory-text {
+            color: #ccc;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .memory-meta {
+            margin-top: 0.6rem;
+            padding-top: 0.6rem;
+            border-top: 1px solid #1a1a2e;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .meta-tag {
+            background: rgba(255,255,255,0.05);
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: #888;
+        }
+        .memory-id {
+            color: #555;
+            font-size: 0.7rem;
+            font-family: monospace;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #555;
+        }
+        .empty-state h2 { color: #777; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span class="pulse"></span> Lumina UX — Memory Store</h1>
+        <p>All memories stored by the learning agent (mem0)</p>
+        <div class="nav">
+            <a href="/">&larr; Upload</a>
+            <a href="/dashboard">Dashboard</a>
+        </div>
+        <div class="stats" id="stats"></div>
+    </header>
+    <main id="content">
+        <div class="empty-state">
+            <h2>Loading memories...</h2>
+        </div>
+    </main>
+
+    <script>
+        function typeClass(type) {
+            if (type === 'insight') return 'type-insight';
+            if (type === 'session_summary') return 'type-session_summary';
+            return 'type-default';
+        }
+
+        async function loadMemories() {
+            try {
+                const res = await fetch('/api/memories');
+                const memories = await res.json();
+
+                if (!memories || memories.length === 0) {
+                    document.getElementById('content').innerHTML =
+                        '<div class="empty-state"><h2>No memories yet</h2><p>Memories will appear here after processing a video session.</p></div>';
+                    document.getElementById('stats').innerHTML =
+                        '<div class="stat"><strong>0</strong> memories</div>';
+                    return;
+                }
+
+                const insights = memories.filter(m => m.metadata && m.metadata.type === 'insight').length;
+                const sessions = memories.filter(m => m.metadata && m.metadata.type === 'session_summary').length;
+
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat"><strong>${memories.length}</strong> total memories</div>
+                    <div class="stat"><strong>${insights}</strong> insights</div>
+                    <div class="stat"><strong>${sessions}</strong> session summaries</div>
+                `;
+
+                let html = '';
+                for (const m of memories) {
+                    const mem = m.memory || m.text || JSON.stringify(m);
+                    const meta = m.metadata || {};
+                    const type = meta.type || 'unknown';
+                    const id = m.id || '';
+
+                    let metaTags = '';
+                    for (const [k, v] of Object.entries(meta)) {
+                        if (k === 'type') continue;
+                        metaTags += `<span class="meta-tag">${k}: ${v}</span>`;
+                    }
+
+                    html += `
+                    <div class="memory-card">
+                        <div class="memory-header">
+                            <span class="memory-id">${id}</span>
+                            <span class="memory-type ${typeClass(type)}">${type}</span>
+                        </div>
+                        <div class="memory-text">${mem}</div>
+                        ${metaTags ? `<div class="memory-meta">${metaTags}</div>` : ''}
+                    </div>`;
+                }
+
+                document.getElementById('content').innerHTML = html;
+            } catch (e) {
+                document.getElementById('content').innerHTML =
+                    `<div class="empty-state"><h2>Failed to load memories</h2><p>${e.message}</p></div>`;
+            }
+        }
+
+        loadMemories();
+    </script>
+</body>
+</html>
