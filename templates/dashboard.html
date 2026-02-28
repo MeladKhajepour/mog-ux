@@ -330,6 +330,7 @@
         <div class="nav">
             <a href="/">&larr; Upload</a>
             <a href="/memories">Memory Store</a>
+            <a href="#" id="clear-btn" onclick="clearAll(); return false;" style="color: #ff4d6a;">Clear All</a>
         </div>
         <div class="stats" id="stats"></div>
     </header>
@@ -357,6 +358,16 @@
     </div>
 
     <script>
+        // --- Clear all ---
+        async function clearAll() {
+            if (!confirm('Clear all playbook data and pipeline logs?')) return;
+            await fetch('/playbook/clear', { method: 'POST' });
+            document.getElementById('pipeline-log').innerHTML = '';
+            document.getElementById('pipeline-status').classList.add('hidden');
+            document.getElementById('stats').innerHTML = '';
+            document.getElementById('content').innerHTML = '<div class="empty-state"><h2>Waiting for friction events...</h2><p>The playbook will populate as user testing sessions are analyzed.</p></div>';
+        }
+
         // --- Lightbox ---
         function openLightbox(src) {
             const lb = document.getElementById('lightbox');

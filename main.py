@@ -168,6 +168,15 @@ async def get_playbook():
     return load_playbook().model_dump()
 
 
+@app.post("/playbook/clear")
+async def clear_playbook():
+    """Clear the playbook — removes all bullets."""
+    from playbook import save_playbook
+    from models import Playbook
+    save_playbook(Playbook(session_id="default", bullets=[], last_updated=""))
+    return {"status": "cleared"}
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Render the Designer's Brief dashboard."""
