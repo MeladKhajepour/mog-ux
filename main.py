@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
 
 # --- FastAPI app ---
 
-app = FastAPI(title="Lumina UX — Brain Module", lifespan=lifespan)
+app = FastAPI(title="mog UX — Brain Module", lifespan=lifespan)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 templates = Jinja2Templates(directory="templates")
 

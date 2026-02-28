@@ -9,7 +9,7 @@ import pytest
 # Ensure env is loaded before importing module
 os.environ.setdefault("MODULATE_API_KEY", "test-key")
 
-from modulate import analyze_sentiment, _map_emotion
+from modulate import analyze_full_audio, _map_emotion
 
 
 # --- Unit tests for emotion mapping ---
@@ -83,10 +83,9 @@ def _mock_response(data: dict, status_code: int = 200):
 
 
 @pytest.mark.asyncio
-async def test_analyze_sentiment_success(tmp_path):
-    """Velma 2 response is parsed correctly — highest friction utterance wins."""
-    # Create a dummy wav file
-    wav_file = tmp_path / "chunk_000.wav"
+async def test_analyze_full_audio_success(tmp_path):
+    """Velma 2 response is parsed — returns one result per utterance."""
+    wav_file = tmp_path / "audio.wav"
     wav_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
     mock_response = _mock_response(SAMPLE_VELMA_RESPONSE)
@@ -98,22 +97,24 @@ async def test_analyze_sentiment_success(tmp_path):
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client_cls.return_value = mock_client
 
-        result = await analyze_sentiment(str(wav_file), chunk_index=0, start_time=30.0)
+        results = await analyze_full_audio(str(wav_file))
 
-    assert result.sentiment == "Frustrated"
-    assert result.score == 0.85
-    assert result.quote == "This is so frustrating."
-    assert result.timestamp == 32.5  # 30.0 + 2500ms
-    assert result.chunk_index == 0
-    assert result.voice_features["utterance_count"] == 2
-    assert result.voice_features["dominant_emotion"] == "Frustrated"
-    assert result.voice_features["emotion_counts"] == {"Confused": 1, "Frustrated": 1}
+    assert len(results) == 2
+    # First utterance: Confused + text override ("can't find" → 0.75, but voice is also 0.75)
+    assert results[0].sentiment == "Confused"
+    assert results[0].score == 0.75
+    assert results[0].timestamp == 0.0
+    # Second utterance: Frustrated (voice = 0.85, text "frustrating" = 0.85)
+    assert results[1].sentiment == "Frustrated"
+    assert results[1].score == 0.85
+    assert results[1].quote == "This is so frustrating."
+    assert results[1].timestamp == 2.5
 
 
 @pytest.mark.asyncio
-async def test_analyze_sentiment_no_utterances(tmp_path):
-    """Empty utterances list returns neutral result."""
-    wav_file = tmp_path / "chunk_000.wav"
+async def test_analyze_full_audio_no_utterances(tmp_path):
+    """Empty utterances list returns single result."""
+    wav_file = tmp_path / "audio.wav"
     wav_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
     empty_response = {"text": "", "duration_ms": 5000, "utterances": []}
@@ -126,30 +127,31 @@ async def test_analyze_sentiment_no_utterances(tmp_path):
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client_cls.return_value = mock_client
 
-        result = await analyze_sentiment(str(wav_file), chunk_index=2, start_time=60.0)
+        results = await analyze_full_audio(str(wav_file))
 
-    assert result.sentiment == "Neutral"
-    assert result.score == 0.0
-    assert result.chunk_index == 2
+    assert len(results) == 1
+    assert results[0].sentiment == "Neutral"
+    assert results[0].score == 0.0
 
 
 @pytest.mark.asyncio
-async def test_analyze_sentiment_no_api_key(tmp_path):
+async def test_analyze_full_audio_no_api_key(tmp_path):
     """Missing API key returns neutral placeholder without calling API."""
-    wav_file = tmp_path / "chunk_000.wav"
+    wav_file = tmp_path / "audio.wav"
     wav_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
     with patch.dict(os.environ, {"MODULATE_API_KEY": ""}):
-        result = await analyze_sentiment(str(wav_file), chunk_index=0, start_time=0.0)
+        results = await analyze_full_audio(str(wav_file))
 
-    assert result.sentiment == "Neutral"
-    assert result.score == 0.0
+    assert len(results) == 1
+    assert results[0].sentiment == "Neutral"
+    assert results[0].score == 0.0
 
 
 @pytest.mark.asyncio
-async def test_analyze_sentiment_all_neutral(tmp_path):
-    """All neutral utterances produce low friction score."""
-    wav_file = tmp_path / "chunk_000.wav"
+async def test_analyze_full_audio_all_neutral(tmp_path):
+    """All neutral utterances produce low friction scores."""
+    wav_file = tmp_path / "audio.wav"
     wav_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
     neutral_response = {
@@ -177,8 +179,9 @@ async def test_analyze_sentiment_all_neutral(tmp_path):
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client_cls.return_value = mock_client
 
-        result = await analyze_sentiment(str(wav_file), chunk_index=0, start_time=0.0)
+        results = await analyze_full_audio(str(wav_file))
 
-    assert result.sentiment == "Neutral"
-    assert result.score == 0.2
-    assert result.quote == "Looks good to me."
+    assert len(results) == 1
+    assert results[0].sentiment == "Neutral"
+    assert results[0].score == 0.2
+    assert results[0].quote == "Looks good to me."

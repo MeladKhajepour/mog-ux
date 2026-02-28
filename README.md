@@ -1,6 +1,6 @@
-# Lumina UX — Autonomous UX Analysis Platform
+# mog UX — Autonomous UX Analysis Platform
 
-Lumina UX is an AI-powered platform that autonomously analyzes user testing sessions to surface friction points and generate actionable design improvements. It uses a multi-agent architecture where specialized agents work independently and in parallel, each responsible for a distinct part of the analysis pipeline.
+mog UX is an AI-powered platform that autonomously analyzes user testing sessions to surface friction points and generate actionable design improvements. It uses a multi-agent architecture where specialized agents work independently and in parallel, each responsible for a distinct part of the analysis pipeline.
 
 ## Architecture
 

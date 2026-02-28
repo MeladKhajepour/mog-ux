@@ -4,13 +4,6 @@ from typing import Optional
 
 # --- Sensing Pipeline Models ---
 
-class AudioSegment(BaseModel):
-    chunk_index: int
-    start_time: float   # seconds into the video
-    end_time: float
-    file_path: str      # path to the .wav chunk
-
-
 class SentimentResult(BaseModel):
     sentiment: str      # "Frustrated", "Confused", "Hesitant", "Neutral"
     score: float        # 0.0 - 1.0

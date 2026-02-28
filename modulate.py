@@ -3,6 +3,8 @@ Modulate — Voice-first prosodic analysis.
 
 Uses the Modulate Velma 2 STT Batch API to analyze audio for real
 emotion signals from the waveform, with speaker diarization.
+
+Sends the full audio file and returns per-utterance friction results.
 """
 
 import os
@@ -69,32 +71,27 @@ def _text_friction_check(text: str) -> tuple[str, float]:
     return best_sentiment, best_score
 
 
-async def analyze_sentiment(audio_path: str, chunk_index: int, start_time: float) -> SentimentResult:
+async def analyze_full_audio(audio_path: str) -> list[SentimentResult]:
     """
-    Analyze a single audio chunk for user sentiment via Modulate Velma 2.
+    Analyze the full audio file via Modulate Velma 2.
 
-    Args:
-        audio_path: Path to the .wav audio chunk.
-        chunk_index: Index of this chunk in the sequence.
-        start_time: When this chunk starts in the original video (seconds).
-
-    Returns:
-        SentimentResult with sentiment, score, quote, and timestamp.
+    Returns a list of SentimentResults — one per utterance that has friction,
+    with accurate timestamps from the API.
     """
     api_key = os.getenv("MODULATE_API_KEY")
     if not api_key:
         print("[Modulate] No MODULATE_API_KEY set — returning neutral placeholder")
-        return SentimentResult(
+        return [SentimentResult(
             sentiment="Neutral",
             score=0.0,
             quote="",
-            timestamp=start_time,
-            chunk_index=chunk_index,
+            timestamp=0.0,
+            chunk_index=0,
             voice_features={},
-        )
+        )]
 
-    # Send audio to Velma 2 STT Batch API
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    # Send full audio to Velma 2 STT Batch API
+    async with httpx.AsyncClient(timeout=300.0) as client:
         with open(audio_path, "rb") as f:
             response = await client.post(
                 VELMA_URL,
@@ -109,65 +106,56 @@ async def analyze_sentiment(audio_path: str, chunk_index: int, start_time: float
         data = response.json()
 
     utterances = data.get("utterances", [])
+    full_text = data.get("text", "")
+
     if not utterances:
-        print(f"[Modulate] Chunk {chunk_index}: no utterances detected")
-        return SentimentResult(
-            sentiment="Neutral",
-            score=0.0,
-            quote=data.get("text", ""),
-            timestamp=start_time,
-            chunk_index=chunk_index,
-            voice_features={},
-        )
+        print("[Modulate] No utterances detected in audio")
+        # Still check the full transcript text for friction
+        text_sentiment, text_score = _text_friction_check(full_text)
+        return [SentimentResult(
+            sentiment=text_sentiment if text_score > 0 else "Neutral",
+            score=text_score,
+            quote=full_text,
+            timestamp=0.0,
+            chunk_index=0,
+            voice_features={"full_transcription": full_text},
+        )]
 
-    # Map each utterance's emotion and find the highest-friction one
-    best_utterance = None
-    best_score = -1.0
-    emotion_counts: dict[str, int] = {}
+    print(f"[Modulate] {len(utterances)} utterances detected")
 
-    for utt in utterances:
+    # Process each utterance individually
+    results: list[SentimentResult] = []
+    for i, utt in enumerate(utterances):
         raw_emotion = utt.get("emotion", "Neutral")
         sentiment, score = _map_emotion(raw_emotion)
-        emotion_counts[raw_emotion] = emotion_counts.get(raw_emotion, 0) + 1
+        utt_text = utt.get("text", "")
+        start_ms = utt.get("start_ms", 0)
+        timestamp = start_ms / 1000.0
 
-        if score > best_score:
-            best_score = score
-            best_utterance = utt
-            best_sentiment = sentiment
+        # Text-based friction check on this utterance's text
+        text_sentiment, text_score = _text_friction_check(utt_text)
+        if text_score > score:
+            print(f"[Modulate] Utterance {i}: text override — voice={sentiment}({score:.2f}), text={text_sentiment}({text_score:.2f})")
+            score = text_score
+            sentiment = text_sentiment
 
-    # Extract quote and timestamp from the most friction-relevant utterance
-    quote = best_utterance.get("text", "") if best_utterance else ""
-    utterance_start_ms = best_utterance.get("start_ms", 0) if best_utterance else 0
-    timestamp = start_time + (utterance_start_ms / 1000.0)
+        voice_features = {
+            "emotion": raw_emotion,
+            "utterance_index": i,
+            "full_transcription": full_text,
+            "duration_ms": data.get("duration_ms", 0),
+            "text_friction_detected": text_score > 0,
+        }
 
-    # Text-based friction check — catches cases where voice sounds calm but words indicate friction
-    full_text = data.get("text", "")
-    text_sentiment, text_score = _text_friction_check(full_text)
-    if text_score > best_score:
-        print(f"[Modulate] Chunk {chunk_index}: text override — voice={best_sentiment}({best_score:.2f}), text={text_sentiment}({text_score:.2f})")
-        best_score = text_score
-        best_sentiment = text_sentiment
-        # Use full transcription as the quote when text analysis wins
-        if full_text:
-            quote = full_text
+        results.append(SentimentResult(
+            sentiment=sentiment,
+            score=score,
+            quote=utt_text,
+            timestamp=timestamp,
+            chunk_index=i,
+            voice_features=voice_features,
+        ))
 
-    # Build voice_features from emotion distribution across utterances
-    voice_features = {
-        "emotion_counts": emotion_counts,
-        "utterance_count": len(utterances),
-        "dominant_emotion": best_utterance.get("emotion", "Neutral") if best_utterance else "Neutral",
-        "full_transcription": full_text,
-        "duration_ms": data.get("duration_ms", 0),
-        "text_friction_detected": text_score > 0,
-    }
+        print(f"[Modulate] Utterance {i} at {timestamp:.1f}s: {sentiment} ({score:.2f}) — \"{utt_text[:60]}\"")
 
-    print(f"[Modulate] Chunk {chunk_index}: {best_sentiment} ({best_score:.2f}) — emotions: {emotion_counts}")
-
-    return SentimentResult(
-        sentiment=best_sentiment,
-        score=best_score,
-        quote=quote,
-        timestamp=timestamp,
-        chunk_index=chunk_index,
-        voice_features=voice_features,
-    )
+    return results
