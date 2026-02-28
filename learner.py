@@ -9,6 +9,7 @@ Three learning loops:
 Uses Gemini for both LLM and embeddings (no OpenAI dependency).
 """
 
+import asyncio
 import os
 
 from mem0 import Memory
@@ -55,7 +56,7 @@ def _get_memory() -> Memory:
     return _memory
 
 
-def store_insight(insight: Insight) -> None:
+async def store_insight(insight: Insight) -> None:
     """Store a curated insight as a mem0 memory (per-event learning)."""
     mem = _get_memory()
 
@@ -76,11 +77,11 @@ def store_insight(insight: Insight) -> None:
         "element": insight.friction_event.visual_context.detected_element,
     }
 
-    mem.add(message, user_id=USER_ID, metadata=metadata)
+    await asyncio.to_thread(mem.add, message, user_id=USER_ID, metadata=metadata)
     print(f"[Learner] Stored insight: {insight.severity} {insight.category} on {insight.friction_event.visual_context.page}")
 
 
-def store_session_summary(events: list[FrictionEvent]) -> None:
+async def store_session_summary(events: list[FrictionEvent]) -> None:
     """After all chunks from one upload are processed, store a session-level summary."""
     if not events:
         return
@@ -119,10 +120,8 @@ def store_session_summary(events: list[FrictionEvent]) -> None:
 
     message = " ".join(summary_parts)
 
-    mem.add(
-        message,
-        user_id=USER_ID,
-        metadata={"type": "session_summary", "event_count": total},
+    await asyncio.to_thread(
+        mem.add, message, user_id=USER_ID, metadata={"type": "session_summary", "event_count": total}
     )
     print(f"[Learner] Stored session summary: {total} events, top page: {top_page}")
 
@@ -137,7 +136,21 @@ def get_all_memories() -> list[dict]:
     return results
 
 
-def recall_for_event(event: FrictionEvent) -> str:
+def delete_memory(memory_id: str) -> None:
+    """Delete a single memory by ID."""
+    mem = _get_memory()
+    mem.delete(memory_id)
+    print(f"[Learner] Deleted memory {memory_id}")
+
+
+def delete_all_memories() -> None:
+    """Delete all memories."""
+    mem = _get_memory()
+    mem.delete_all(user_id=USER_ID)
+    print("[Learner] Deleted all memories")
+
+
+async def recall_for_event(event: FrictionEvent) -> str:
     """Retrieve relevant past learnings for a new friction event."""
     mem = _get_memory()
 
@@ -147,7 +160,7 @@ def recall_for_event(event: FrictionEvent) -> str:
         f'User said: "{event.user_quote}"'
     )
 
-    results = mem.search(query, user_id=USER_ID, limit=5)
+    results = await asyncio.to_thread(mem.search, query, user_id=USER_ID, limit=5)
 
     if not results.get("results"):
         return ""

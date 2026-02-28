@@ -42,7 +42,7 @@ async def reflect(event: FrictionEvent) -> Insight:
     """Send a friction event to Gemini for root cause analysis, enriched with past learnings."""
     # Recall relevant memories from previous sessions
     try:
-        past_learnings = recall_for_event(event)
+        past_learnings = await recall_for_event(event)
     except Exception as e:
         print(f"[Reflector] Memory recall failed (non-fatal): {e}")
         past_learnings = ""

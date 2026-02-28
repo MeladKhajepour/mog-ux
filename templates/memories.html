@@ -43,6 +43,7 @@
         .nav {
             display: flex;
             gap: 1.5rem;
+            align-items: center;
             margin-top: 1rem;
         }
         .nav a {
@@ -51,6 +52,17 @@
             font-size: 0.85rem;
         }
         .nav a:hover { text-decoration: underline; }
+        .btn-delete-all {
+            background: #ff4444;
+            color: #fff;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-left: auto;
+        }
+        .btn-delete-all:hover { background: #cc3333; }
         .stats {
             display: flex;
             gap: 2rem;
@@ -76,9 +88,14 @@
         .memory-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             gap: 1rem;
             margin-bottom: 0.5rem;
+        }
+        .memory-header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
         }
         .memory-type {
             flex-shrink: 0;
@@ -117,6 +134,19 @@
             font-size: 0.7rem;
             font-family: monospace;
         }
+        .btn-delete {
+            background: none;
+            border: 1px solid #ff444444;
+            color: #ff4444;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .memory-card:hover .btn-delete { opacity: 1; }
+        .btn-delete:hover { background: #ff444422; }
         .empty-state {
             text-align: center;
             padding: 4rem 2rem;
@@ -132,6 +162,7 @@
         <div class="nav">
             <a href="/">&larr; Upload</a>
             <a href="/dashboard">Dashboard</a>
+            <button class="btn-delete-all" id="deleteAllBtn" style="display:none" onclick="deleteAll()">Clear All Memories</button>
         </div>
         <div class="stats" id="stats"></div>
     </header>
@@ -148,6 +179,18 @@
             return 'type-default';
         }
 
+        async function deleteOne(id) {
+            if (!confirm('Delete this memory?')) return;
+            await fetch(`/api/memories/${id}`, { method: 'DELETE' });
+            loadMemories();
+        }
+
+        async function deleteAll() {
+            if (!confirm('Delete ALL memories? This cannot be undone.')) return;
+            await fetch('/api/memories', { method: 'DELETE' });
+            loadMemories();
+        }
+
         async function loadMemories() {
             try {
                 const res = await fetch('/api/memories');
@@ -158,8 +201,11 @@
                         '<div class="empty-state"><h2>No memories yet</h2><p>Memories will appear here after processing a video session.</p></div>';
                     document.getElementById('stats').innerHTML =
                         '<div class="stat"><strong>0</strong> memories</div>';
+                    document.getElementById('deleteAllBtn').style.display = 'none';
                     return;
                 }
+
+                document.getElementById('deleteAllBtn').style.display = 'block';
 
                 const insights = memories.filter(m => m.metadata && m.metadata.type === 'insight').length;
                 const sessions = memories.filter(m => m.metadata && m.metadata.type === 'session_summary').length;
@@ -184,10 +230,13 @@
                     }
 
                     html += `
-                    <div class="memory-card">
+                    <div class="memory-card" id="mem-${id}">
                         <div class="memory-header">
-                            <span class="memory-id">${id}</span>
-                            <span class="memory-type ${typeClass(type)}">${type}</span>
+                            <div class="memory-header-left">
+                                <span class="memory-id">${id}</span>
+                                <span class="memory-type ${typeClass(type)}">${type}</span>
+                            </div>
+                            <button class="btn-delete" onclick="deleteOne('${id}')">Delete</button>
                         </div>
                         <div class="memory-text">${mem}</div>
                         ${metaTags ? `<div class="memory-meta">${metaTags}</div>` : ''}

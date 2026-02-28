@@ -136,7 +136,7 @@ async def process_upload(video_path: str, event_queue: asyncio.Queue):
     # 4. Store session summary for cross-session learning
     if session_events:
         try:
-            store_session_summary(session_events)
+            await store_session_summary(session_events)
         except Exception as e:
             print(f"[Generator] Failed to store session summary: {e}")
 

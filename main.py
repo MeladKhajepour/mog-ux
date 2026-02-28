@@ -8,13 +8,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request, UploadFile, File
+from typing import List
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from curator import curate
 from generator import process_upload
-from learner import store_insight, get_all_memories
+from learner import store_insight, get_all_memories, delete_memory, delete_all_memories
 from mockup_generator import generate_mockup
 from models import FrictionEvent
 from playbook import load_playbook, update_mockup_url
@@ -85,7 +86,7 @@ async def brain_pipeline():
 
             async def do_memory():
                 try:
-                    store_insight(insight)
+                    await store_insight(insight)
                     publish("learning", "Stored insight in memory")
                 except Exception as e:
                     print(f"[Brain] Failed to store insight in mem0: {e}")
@@ -130,28 +131,35 @@ async def progress_stream():
 
 
 @app.post("/upload")
-async def upload_video(request: Request, file: UploadFile = File(...)):
-    """Accept a video upload and kick off the sensing pipeline."""
-    # Save uploaded file
-    filename = file.filename or "upload.mp4"
-    video_path = os.path.join(UPLOAD_DIR, filename)
-    with open(video_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+async def upload_video(request: Request, files: List[UploadFile] = File(...)):
+    """Accept one or more video uploads and process them sequentially."""
+    video_paths: list[tuple[str, str]] = []
 
-    size_bytes = os.path.getsize(video_path)
-    print(f"[Upload] Saved {filename} ({size_bytes} bytes)")
+    for file in files:
+        filename = file.filename or "upload.mp4"
+        video_path = os.path.join(UPLOAD_DIR, filename)
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        size_bytes = os.path.getsize(video_path)
+        print(f"[Upload] Saved {filename} ({size_bytes} bytes)")
+        video_paths.append((filename, video_path))
 
-    # Kick off sensing pipeline in background
-    asyncio.create_task(process_upload(video_path, event_queue))
+    total = len(video_paths)
 
-    # If called via fetch (JS), return JSON; otherwise render template
+    async def process_all():
+        for i, (filename, video_path) in enumerate(video_paths):
+            publish("video_start", f"Starting video {i + 1} of {total}: {filename}", str(total))
+            await process_upload(video_path, event_queue)
+
+    asyncio.create_task(process_all())
+
     accept = request.headers.get("accept", "")
     if "application/json" in accept:
-        return {"status": "ok", "filename": filename}
+        return {"status": "ok", "count": total}
 
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "message": f"Upload received: {filename}. Processing started — check the dashboard for results.",
+        "message": f"{total} video(s) queued for analysis.",
     })
 
 
@@ -197,6 +205,20 @@ async def memories_page(request: Request):
 async def api_memories():
     """Return all stored mem0 memories as JSON."""
     return get_all_memories()
+
+
+@app.delete("/api/memories")
+async def api_delete_all_memories():
+    """Delete all mem0 memories."""
+    delete_all_memories()
+    return {"status": "cleared"}
+
+
+@app.delete("/api/memories/{memory_id}")
+async def api_delete_memory(memory_id: str):
+    """Delete a single mem0 memory by ID."""
+    delete_memory(memory_id)
+    return {"status": "deleted", "id": memory_id}
 
 
 if __name__ == "__main__":

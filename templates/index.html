@@ -55,7 +55,7 @@
             border-radius: 16px;
             padding: 3rem 4rem;
             text-align: center;
-            max-width: 540px;
+            max-width: 560px;
             width: 100%;
             transition: border-color 0.3s;
         }
@@ -65,14 +65,14 @@
             color: #fff;
             margin-bottom: 0.5rem;
         }
-        .upload-card p {
+        .upload-card > p {
             color: #777;
             font-size: 0.9rem;
             margin-bottom: 1.5rem;
         }
         .file-input-wrapper {
             position: relative;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
         }
         .file-input-wrapper input[type="file"] {
             width: 100%;
@@ -98,6 +98,44 @@
         .file-input-wrapper input[type="file"]::file-selector-button:hover {
             background: #6a6aee;
         }
+
+        /* File queue list */
+        .file-queue {
+            display: none;
+            text-align: left;
+            background: #0a0a15;
+            border: 1px solid #2a2a3a;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        .file-queue-header {
+            padding: 0.5rem 0.8rem;
+            font-size: 0.75rem;
+            color: #666;
+            border-bottom: 1px solid #1a1a2a;
+        }
+        .file-queue-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.45rem 0.8rem;
+            font-size: 0.8rem;
+            color: #aaa;
+            border-bottom: 1px solid #12121f;
+        }
+        .file-queue-item:last-child { border-bottom: none; }
+        .file-queue-item .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-queue-item .fsize { color: #555; font-size: 0.7rem; flex-shrink: 0; margin-left: 0.5rem; }
+        .file-queue-item .fstatus {
+            flex-shrink: 0;
+            margin-left: 0.5rem;
+            font-size: 0.7rem;
+            color: #555;
+        }
+        .file-queue-item .fstatus.active { color: #ffaa33; }
+        .file-queue-item .fstatus.done { color: #44cc88; }
+
         button[type="submit"] {
             background: linear-gradient(135deg, #7c7cff, #6a6aee);
             color: #fff;
@@ -136,7 +174,8 @@
         .formats {
             color: #555;
             font-size: 0.75rem;
-            margin-top: 0.5rem;
+            margin-top: 0.25rem;
+            margin-bottom: 1rem;
         }
 
         /* --- Progress Panel --- */
@@ -189,6 +228,14 @@
             from { opacity: 0; transform: translateY(4px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        .progress-entry.video_start {
+            color: #7c7cff;
+            font-weight: 600;
+            border-top: 1px solid #1a1a2a;
+            margin-top: 0.25rem;
+            padding-top: 0.6rem;
+        }
+        .progress-entry.video_start:first-child { border-top: none; }
         .progress-entry .stage-icon {
             flex-shrink: 0;
             width: 20px;
@@ -267,15 +314,21 @@
     </header>
     <main>
         <div class="upload-card">
-            <h2>Upload Screen Recording</h2>
-            <p>Upload a video with mic audio from a user testing session.<br>
+            <h2>Upload Screen Recordings</h2>
+            <p>Upload one or more videos with mic audio from user testing sessions.<br>
                The system will detect frustration moments and build your playbook.</p>
 
             <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
                 <div class="file-input-wrapper">
-                    <input type="file" name="file" accept="video/mp4,video/webm,video/*" required id="file-input">
+                    <input type="file" name="files" accept="video/mp4,video/webm,video/*" multiple required id="file-input">
                 </div>
-                <p class="formats">Supported: MP4, WebM, MOV</p>
+                <p class="formats">Supported: MP4, WebM, MOV &nbsp;·&nbsp; Select multiple files to analyze in sequence</p>
+
+                <div class="file-queue" id="file-queue">
+                    <div class="file-queue-header" id="file-queue-header"></div>
+                    <div id="file-queue-list"></div>
+                </div>
+
                 <button type="submit" id="submit-btn">Upload & Analyze</button>
             </form>
 
@@ -312,11 +365,43 @@
 
     <script>
         const STAGE_ICONS = {
-            upload: '📁', audio_extract: '🎵', audio_split: '✂️',
-            analyzing_chunk: '🔍', voice_analysis: '🗣️', friction_spike: '⚡',
+            upload: '📁', audio_extract: '🎵', analyzing_audio: '🔍',
+            voice_analysis: '🗣️', friction_spike: '⚡',
             visual_analysis: '👁️', event_queued: '📦', reflecting: '🧠',
             curating: '📋', learning: '💾', session_done: '✅',
+            video_start: '🎬', mockup: '🖼️', mockup_done: '✅',
         };
+
+        let totalVideos = 1;
+        let doneCount = 0;
+
+        // Show file list when files are selected
+        document.getElementById('file-input').addEventListener('change', function() {
+            const files = this.files;
+            const queue = document.getElementById('file-queue');
+            const list = document.getElementById('file-queue-list');
+            const header = document.getElementById('file-queue-header');
+
+            if (!files.length) {
+                queue.style.display = 'none';
+                return;
+            }
+
+            header.textContent = `${files.length} video${files.length > 1 ? 's' : ''} selected — will be analyzed sequentially`;
+            list.innerHTML = '';
+            for (const f of files) {
+                const size = f.size > 1024 * 1024
+                    ? (f.size / (1024 * 1024)).toFixed(1) + ' MB'
+                    : (f.size / 1024).toFixed(0) + ' KB';
+                list.innerHTML += `
+                <div class="file-queue-item" id="fq-${f.name.replace(/\W/g, '_')}">
+                    <span class="fname">${f.name}</span>
+                    <span class="fsize">${size}</span>
+                    <span class="fstatus" id="fqs-${f.name.replace(/\W/g, '_')}">queued</span>
+                </div>`;
+            }
+            queue.style.display = 'block';
+        });
 
         document.getElementById('upload-form').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -324,24 +409,38 @@
             const fileInput = document.getElementById('file-input');
             if (!fileInput.files.length) return;
 
+            totalVideos = fileInput.files.length;
+            doneCount = 0;
+
             btn.disabled = true;
             btn.textContent = 'Uploading...';
 
             // Show progress panel and connect SSE before uploading
             const panel = document.getElementById('progress-panel');
-            const log = document.getElementById('progress-log');
             panel.style.display = 'block';
 
             const evtSource = new EventSource('/progress');
             evtSource.onmessage = function(e) {
                 const data = JSON.parse(e.data);
                 addEntry(data);
+
+                if (data.stage === 'video_start') {
+                    // data.detail holds the total count as string
+                    document.getElementById('progress-title').textContent = data.message;
+                }
+
                 if (data.stage === 'session_done') {
-                    document.getElementById('progress-indicator').classList.add('done');
-                    document.getElementById('progress-title').textContent = 'Complete — redirecting...';
-                    document.getElementById('progress-done-link').style.display = 'block';
-                    evtSource.close();
-                    setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+                    doneCount++;
+                    if (doneCount >= totalVideos) {
+                        document.getElementById('progress-indicator').classList.add('done');
+                        document.getElementById('progress-title').textContent = 'All videos complete — redirecting...';
+                        document.getElementById('progress-done-link').style.display = 'block';
+                        evtSource.close();
+                        setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+                    } else {
+                        document.getElementById('progress-title').textContent =
+                            `Video ${doneCount} of ${totalVideos} done — processing next...`;
+                    }
                 }
             };
 
@@ -353,7 +452,9 @@
             barWrapper.style.display = 'block';
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            for (const f of fileInput.files) {
+                formData.append('files', f);
+            }
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', '/upload');
@@ -369,7 +470,9 @@
             xhr.onload = function() {
                 barFill.style.width = '100%';
                 barPct.textContent = '100%';
-                barText.textContent = 'Upload complete';
+                barText.textContent = totalVideos > 1
+                    ? `${totalVideos} videos uploaded — processing sequentially`
+                    : 'Upload complete';
                 btn.textContent = 'Processing...';
             };
             xhr.onerror = function() {
@@ -387,7 +490,8 @@
 
             const icon = STAGE_ICONS[data.stage] || '•';
             const time = new Date(data.time * 1000).toLocaleTimeString();
-            let detail = data.detail ? `<span class="detail">"${data.detail}"</span>` : '';
+            let detail = data.detail && data.stage !== 'video_start'
+                ? `<span class="detail">"${data.detail}"</span>` : '';
 
             div.innerHTML = `<span class="stage-icon">${icon}</span><span class="msg">${data.message}${detail}</span><span class="ts">${time}</span>`;
             log.appendChild(div);
