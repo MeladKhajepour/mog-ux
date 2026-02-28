@@ -26,6 +26,7 @@ def _get_memory() -> Memory:
     """Lazy-init mem0 client configured with Gemini for LLM + embeddings."""
     global _memory
     if _memory is None:
+        api_key = os.getenv("GEMINI_API_KEY", "")
         config = {
             "version": "v1.1",
             "llm": {
@@ -34,12 +35,14 @@ def _get_memory() -> Memory:
                     "model": "gemini-3-flash-preview",
                     "temperature": 0.1,
                     "max_tokens": 2000,
+                    "api_key": api_key,
                 },
             },
             "embedder": {
                 "provider": "gemini",
                 "config": {
                     "model": "models/gemini-embedding-001",
+                    "api_key": api_key,
                 },
             },
             "vector_store": {
