@@ -77,3 +77,16 @@ def add_or_merge_bullet(playbook: Playbook, new_bullet: Bullet) -> Playbook:
 
     save_playbook(playbook)
     return playbook
+
+
+def update_mockup_url(frame_url: str, mockup_url: str) -> None:
+    """Set mockup_url on all bullets that have a matching frame_url."""
+    playbook = load_playbook()
+    updated = False
+    for bullet in playbook.bullets:
+        if bullet.frame_url == frame_url and not bullet.mockup_url:
+            bullet.mockup_url = mockup_url
+            bullet.updated_at = _now()
+            updated = True
+    if updated:
+        save_playbook(playbook)

@@ -1,15 +1,15 @@
+import asyncio
 import json
 import os
 
-import google.generativeai as genai
+from google import genai
 
 from models import FrictionEvent, Insight
 from learner import recall_for_event
 from yutori_client import search_benchmarks
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-
-model = genai.GenerativeModel("gemini-3-flash-preview")
+_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+MODEL = "gemini-3-flash-preview"
 
 
 REFLECTOR_PROMPT = """You are a UX diagnostician. Analyze this friction event from a user testing session and provide a structured diagnosis.
@@ -41,7 +41,11 @@ REFLECTOR_PROMPT = """You are a UX diagnostician. Analyze this friction event fr
 async def reflect(event: FrictionEvent) -> Insight:
     """Send a friction event to Gemini for root cause analysis, enriched with past learnings."""
     # Recall relevant memories from previous sessions
-    past_learnings = recall_for_event(event)
+    try:
+        past_learnings = recall_for_event(event)
+    except Exception as e:
+        print(f"[Reflector] Memory recall failed (non-fatal): {e}")
+        past_learnings = ""
 
     prompt = REFLECTOR_PROMPT.format(
         timestamp=event.timestamp,
@@ -53,8 +57,12 @@ async def reflect(event: FrictionEvent) -> Insight:
         past_learnings=past_learnings if past_learnings else "(No past learnings available yet — this is a fresh analysis.)",
     )
 
-    response = await model.generate_content_async(prompt)
+    print(f"[Reflector] Calling Gemini {MODEL}...")
+    response = await asyncio.to_thread(
+        _client.models.generate_content, model=MODEL, contents=prompt
+    )
     text = response.text.strip()
+    print(f"[Reflector] Got response: {text[:100]}...")
 
     # Strip markdown code fences if Gemini adds them
     if text.startswith("```"):

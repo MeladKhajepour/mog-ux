@@ -17,9 +17,10 @@ from generator import process_upload
 from learner import store_insight, get_all_memories
 from mockup_generator import generate_mockup
 from models import FrictionEvent
-from playbook import load_playbook
+from playbook import load_playbook, update_mockup_url
 from progress import publish, subscribe
-from reflector import reflect_with_benchmarks
+from reflector import reflect
+from yutori_client import search_benchmarks
 
 # --- Uploads directory ---
 
@@ -38,35 +39,60 @@ async def brain_pipeline():
         try:
             print(f"[Brain] Processing event {event.event_id}...")
             publish("reflecting", "Brain analyzing event...")
-            insight, benchmarks = await reflect_with_benchmarks(event)
 
-            # Generate mockup if we have a frame
+            # Step 1: Reflect (Gemini diagnosis) — this is the only blocking call before cards show
+            insight = await reflect(event)
+
+            # Step 2: Build frame URL
             frame_url = ""
-            mockup_url = ""
             if event.frame_path and os.path.exists(event.frame_path):
-                # Build URL from the file path (relative to uploads/)
                 rel_path = os.path.relpath(event.frame_path, UPLOAD_DIR)
                 frame_url = f"/uploads/{rel_path}"
+
+            # Step 3: Curate IMMEDIATELY — cards show up on dashboard now
+            publish("curating", f"Curated: {insight.severity} {insight.category}")
+            curate(insight, {}, frame_url=frame_url, mockup_url="")
+            print(f"[Brain] Cards live for event {event.event_id} — {insight.severity} {insight.category}")
+
+            # Step 4: Everything below runs AFTER cards are visible
+            # Mockup + Yutori + memory storage in parallel
+            async def do_mockup():
+                if not frame_url or not event.frame_path:
+                    return
                 try:
-                    publish("mockup", "Generating UI mockup via Nano Banana Pro...")
+                    publish("mockup", "Generating suggested UI mockup...")
                     mockup_path = await generate_mockup(
                         event.frame_path, insight.root_cause, insight.suggested_fix
                     )
                     if os.path.exists(mockup_path):
                         mockup_rel = os.path.relpath(mockup_path, UPLOAD_DIR)
                         mockup_url = f"/uploads/{mockup_rel}"
-                        publish("mockup_done", "Mockup generated")
-                except Exception as mockup_err:
-                    print(f"[Brain] Mockup generation failed: {mockup_err}")
+                        update_mockup_url(frame_url, mockup_url)
+                        publish("mockup_done", "Suggested UI mockup ready")
+                        print(f"[Brain] Mockup generated: {mockup_url}")
+                except Exception as e:
+                    print(f"[Brain] Mockup generation failed: {e}")
+                    publish("mockup_failed", "Mockup generation failed")
 
-            publish("curating", f"Curated: {insight.severity} {insight.category}")
-            curate(insight, benchmarks, frame_url=frame_url, mockup_url=mockup_url)
-            try:
-                store_insight(insight)
-                publish("learning", "Stored insight in memory")
-            except Exception as mem_err:
-                print(f"[Brain] Failed to store insight in mem0: {mem_err}")
-            print(f"[Brain] Done with event {event.event_id} — {insight.severity} {insight.category}")
+            async def do_benchmarks():
+                try:
+                    benchmarks = await search_benchmarks(insight.root_cause, insight.category)
+                    if benchmarks and benchmarks.get("recommendation"):
+                        curate(insight, benchmarks, frame_url=frame_url, mockup_url="")
+                        print(f"[Brain] Benchmarks added for {insight.category}")
+                except Exception as e:
+                    print(f"[Brain] Benchmark search failed: {e}")
+
+            async def do_memory():
+                try:
+                    store_insight(insight)
+                    publish("learning", "Stored insight in memory")
+                except Exception as e:
+                    print(f"[Brain] Failed to store insight in mem0: {e}")
+
+            await asyncio.gather(do_mockup(), do_benchmarks(), do_memory())
+            print(f"[Brain] Fully done with event {event.event_id}")
+
         except Exception as e:
             print(f"[Brain] Error processing event {event.event_id}: {e}")
         finally:

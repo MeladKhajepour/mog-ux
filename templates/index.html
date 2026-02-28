@@ -338,9 +338,10 @@
                 addEntry(data);
                 if (data.stage === 'session_done') {
                     document.getElementById('progress-indicator').classList.add('done');
-                    document.getElementById('progress-title').textContent = 'Complete';
+                    document.getElementById('progress-title').textContent = 'Complete — redirecting...';
                     document.getElementById('progress-done-link').style.display = 'block';
                     evtSource.close();
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
                 }
             };
 

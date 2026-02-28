@@ -57,8 +57,15 @@ async def search_benchmarks(issue_description: str, category: str) -> dict:
         )
         task_id = task["task_id"]
 
-        # Poll for completion
+        # Poll for completion (max 30 seconds)
+        max_polls = 15
+        polls = 0
         while task.get("status") not in ("completed", "failed"):
+            polls += 1
+            if polls > max_polls:
+                print(f"[Yutori] Timed out waiting for task {task_id}")
+                await client.close()
+                return {}
             await asyncio.sleep(2)
             task = await client.research.get(task_id)
 

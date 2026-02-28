@@ -30,7 +30,7 @@ def _get_memory() -> Memory:
             "llm": {
                 "provider": "gemini",
                 "config": {
-                    "model": "gemini-2.0-flash",
+                    "model": "gemini-3-flash-preview",
                     "temperature": 0.1,
                     "max_tokens": 2000,
                 },
@@ -38,7 +38,7 @@ def _get_memory() -> Memory:
             "embedder": {
                 "provider": "gemini",
                 "config": {
-                    "model": "models/text-embedding-004",
+                    "model": "models/gemini-embedding-001",
                 },
             },
             "vector_store": {

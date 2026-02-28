@@ -124,41 +124,179 @@
             font-size: 0.75rem;
             margin-top: 0.4rem;
         }
-        .visual-comparison {
-            display: flex;
-            gap: 1rem;
+
+        /* --- Frame / Mockup Images --- */
+        .bullet-image {
             margin-top: 0.8rem;
             padding-top: 0.8rem;
             border-top: 1px solid #1a1a2e;
         }
-        .visual-comparison .before,
-        .visual-comparison .after {
-            flex: 1;
-            min-width: 0;
-        }
-        .visual-comparison label {
+        .bullet-image label {
             display: block;
             font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             margin-bottom: 0.4rem;
-            color: #888;
         }
-        .visual-comparison .before label { color: #ff4d6a; }
-        .visual-comparison .after label { color: #44cc88; }
-        .visual-comparison img {
+        .bullet-image label.label-current { color: #ff4d6a; }
+        .bullet-image label.label-suggested { color: #44cc88; }
+        .bullet-image img {
             width: 100%;
+            max-width: 600px;
             border-radius: 8px;
             border: 1px solid #2a2a3a;
             display: block;
+            cursor: pointer;
+            transition: opacity 0.2s;
         }
+        .bullet-image img:hover { opacity: 0.85; }
+
+        /* Generating indicator */
+        .mockup-generating {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.8rem 1rem;
+            background: #1a1a2e;
+            border: 1px dashed #2a2a4a;
+            border-radius: 8px;
+            color: #888;
+            font-size: 0.8rem;
+            max-width: 600px;
+        }
+        .mockup-generating .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #333;
+            border-top-color: #44cc88;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* --- Fullscreen Lightbox --- */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.92);
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+        .lightbox.active { display: flex; }
+        .lightbox img {
+            max-width: 95vw;
+            max-height: 95vh;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .lightbox-close {
+            position: fixed;
+            top: 1.5rem;
+            right: 2rem;
+            color: #aaa;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 1001;
+            background: rgba(0,0,0,0.5);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #333;
+        }
+        .lightbox-close:hover { color: #fff; border-color: #555; }
+
         .empty-state {
             text-align: center;
             padding: 4rem 2rem;
             color: #555;
         }
         .empty-state h2 { color: #777; margin-bottom: 0.5rem; }
+
+        /* --- Pipeline Status Bar --- */
+        .pipeline-status {
+            background: #0a0a15;
+            border: 1px solid #2a2a3a;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+        .pipeline-status.hidden { display: none; }
+        .pipeline-header {
+            display: flex;
+            align-items: center;
+            padding: 0.6rem 1rem;
+            background: #12121f;
+            border-bottom: 1px solid #2a2a3a;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #ccc;
+            cursor: pointer;
+            user-select: none;
+        }
+        .pipeline-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.6rem;
+            flex-shrink: 0;
+        }
+        .pipeline-dot.active {
+            background: #ffaa33;
+            animation: pulse 1.2s infinite;
+        }
+        .pipeline-dot.done {
+            background: #44cc88;
+            animation: none;
+        }
+        .pipeline-dot.idle {
+            background: #555;
+            animation: none;
+        }
+        .pipeline-header .toggle {
+            margin-left: auto;
+            color: #666;
+            font-size: 0.7rem;
+        }
+        .pipeline-log {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 0.4rem 0;
+        }
+        .pipeline-log.collapsed { display: none; }
+        .pipeline-entry {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.3rem 1rem;
+            font-size: 0.75rem;
+            color: #888;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(3px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pipeline-entry .icon { width: 18px; flex-shrink: 0; text-align: center; margin-right: 0.4rem; }
+        .pipeline-entry .msg { flex: 1; }
+        .pipeline-entry .ts { flex-shrink: 0; margin-left: 0.6rem; color: #444; font-size: 0.65rem; }
+        .pipeline-entry.friction_spike { color: #ff6666; font-weight: 600; }
+        .pipeline-entry.session_done { color: #44cc88; font-weight: 600; }
+        .pipeline-entry .detail {
+            display: block;
+            color: #555;
+            font-size: 0.7rem;
+            font-style: italic;
+            margin-top: 1px;
+        }
         .pulse {
             display: inline-block;
             width: 8px;
@@ -195,16 +333,77 @@
         </div>
         <div class="stats" id="stats"></div>
     </header>
-    <main id="content">
-        <div class="empty-state">
-            <h2>Waiting for friction events...</h2>
-            <p>The playbook will populate as user testing sessions are analyzed.</p>
+    <main>
+        <div class="pipeline-status hidden" id="pipeline-status">
+            <div class="pipeline-header" onclick="document.getElementById('pipeline-log').classList.toggle('collapsed')">
+                <div class="pipeline-dot idle" id="pipeline-dot"></div>
+                <span id="pipeline-title">Pipeline idle</span>
+                <span class="toggle" id="pipeline-toggle">show/hide</span>
+            </div>
+            <div class="pipeline-log" id="pipeline-log"></div>
+        </div>
+        <div id="content">
+            <div class="empty-state">
+                <h2>Waiting for friction events...</h2>
+                <p>The playbook will populate as user testing sessions are analyzed.</p>
+            </div>
         </div>
     </main>
 
+    <!-- Fullscreen lightbox -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <div class="lightbox-close" onclick="closeLightbox()">&times;</div>
+        <img id="lightbox-img" src="" alt="Full-size preview" />
+    </div>
+
     <script>
+        // --- Lightbox ---
+        function openLightbox(src) {
+            const lb = document.getElementById('lightbox');
+            document.getElementById('lightbox-img').src = src;
+            lb.classList.add('active');
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+        // --- Track whether mockup is generating ---
+        let mockupGenerating = false;
+
         function severityBadge(severity) {
             return `<span class="badge badge-${severity}">${severity}</span>`;
+        }
+
+        function renderFrictionImage(b) {
+            if (!b.frame_url) return '';
+            return `
+                <div class="bullet-image">
+                    <label class="label-current">Problem Screenshot</label>
+                    <img src="${b.frame_url}" alt="UI at friction point" onclick="openLightbox('${b.frame_url}')" />
+                </div>`;
+        }
+
+        function renderMockupImage(b) {
+            if (b.mockup_url) {
+                return `
+                    <div class="bullet-image">
+                        <label class="label-suggested">Suggested Fix</label>
+                        <img src="${b.mockup_url}" alt="Suggested UI improvement" onclick="openLightbox('${b.mockup_url}')" />
+                    </div>`;
+            }
+            // Show generating indicator if we know a mockup is in progress
+            if (b.frame_url && mockupGenerating) {
+                return `
+                    <div class="bullet-image">
+                        <label class="label-suggested">Suggested Fix</label>
+                        <div class="mockup-generating">
+                            <div class="spinner"></div>
+                            Generating suggested UI mockup...
+                        </div>
+                    </div>`;
+            }
+            return '';
         }
 
         function renderBullets(bullets, type, title, icon) {
@@ -215,6 +414,7 @@
 
             let html = `<div class="section-title"><span class="icon">${icon}</span> ${title} (${filtered.length})</div>`;
             for (const b of filtered) {
+                const imageSection = type === 'friction_log' ? renderFrictionImage(b) : renderMockupImage(b);
                 html += `
                 <div class="bullet-card">
                     <div class="bullet-header">
@@ -226,18 +426,7 @@
                     </div>
                     <div class="bullet-content">${b.content}</div>
                     ${b.benchmark_source ? `<div class="benchmark-source">Source: ${b.benchmark_source}</div>` : ''}
-                    ${b.frame_url ? `
-                    <div class="visual-comparison">
-                        <div class="before">
-                            <label>Current</label>
-                            <img src="${b.frame_url}" alt="Current UI at friction point" />
-                        </div>
-                        ${b.mockup_url ? `
-                        <div class="after">
-                            <label>Suggested</label>
-                            <img src="${b.mockup_url}" alt="Suggested UI improvement" />
-                        </div>` : ''}
-                    </div>` : ''}
+                    ${imageSection}
                     <div class="evidence">
                         ${b.evidence.map(e => `<div class="evidence-item">${e}</div>`).join('')}
                     </div>
@@ -279,6 +468,70 @@
         // Poll every 3 seconds for updates
         refresh();
         setInterval(refresh, 3000);
+
+        // --- Live pipeline status via SSE ---
+        const STAGE_ICONS = {
+            upload: '\uD83D\uDCC1', audio_extract: '\uD83C\uDFB5', audio_split: '\u2702\uFE0F',
+            analyzing_chunk: '\uD83D\uDD0D', voice_analysis: '\uD83D\uDDE3\uFE0F', friction_spike: '\u26A1',
+            visual_analysis: '\uD83D\uDC41\uFE0F', event_queued: '\uD83D\uDCE6', reflecting: '\uD83E\uDDE0',
+            curating: '\uD83D\uDCCB', learning: '\uD83D\uDCBE', session_done: '\u2705',
+            mockup: '\uD83C\uDFA8', mockup_done: '\uD83D\uDDBC\uFE0F', mockup_failed: '\u274C',
+        };
+
+        function connectSSE() {
+            const panel = document.getElementById('pipeline-status');
+            const dot = document.getElementById('pipeline-dot');
+            const title = document.getElementById('pipeline-title');
+            const log = document.getElementById('pipeline-log');
+
+            const evtSource = new EventSource('/progress');
+
+            evtSource.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+
+                // Show the panel on first event
+                panel.classList.remove('hidden');
+                dot.className = 'pipeline-dot active';
+                title.textContent = data.message;
+
+                // Track mockup generation state
+                if (data.stage === 'mockup') {
+                    mockupGenerating = true;
+                    refresh(); // re-render to show the spinner
+                }
+                if (data.stage === 'mockup_done' || data.stage === 'mockup_failed') {
+                    mockupGenerating = false;
+                    refresh(); // re-render to show the image or remove spinner
+                }
+
+                // Refresh dashboard when curating completes (bullets are ready)
+                if (data.stage === 'curating') {
+                    setTimeout(refresh, 500);
+                }
+
+                // Add log entry
+                const div = document.createElement('div');
+                div.className = 'pipeline-entry ' + data.stage;
+                const icon = STAGE_ICONS[data.stage] || '\u2022';
+                const time = new Date(data.time * 1000).toLocaleTimeString();
+                let detail = data.detail ? `<span class="detail">"${data.detail}"</span>` : '';
+                div.innerHTML = `<span class="icon">${icon}</span><span class="msg">${data.message}${detail}</span><span class="ts">${time}</span>`;
+                log.appendChild(div);
+                log.scrollTop = log.scrollHeight;
+
+                if (data.stage === 'session_done') {
+                    dot.className = 'pipeline-dot done';
+                    title.textContent = 'Pipeline complete';
+                }
+            };
+
+            evtSource.onerror = function() {
+                evtSource.close();
+                setTimeout(connectSSE, 3000);
+            };
+        }
+
+        connectSSE();
     </script>
 </body>
 </html>
