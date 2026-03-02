@@ -49,7 +49,7 @@ class Insight(BaseModel):
     root_cause: str      # Gemini's specific diagnosis
     severity: str        # "critical" | "moderate" | "minor"
     category: str        # "navigation", "visual_hierarchy", "labeling", etc.
-    suggested_fix: str   # Qualitative suggestion
+    suggested_fix: str = ""  # Filled in after Yutori research
 
 
 class Bullet(BaseModel):

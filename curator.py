@@ -19,19 +19,12 @@ def _make_evidence(insight: Insight) -> str:
     )
 
 
-def curate(insight: Insight, benchmarks: dict, frame_url: str = "", mockup_url: str = "") -> None:
-    """Delta-merge an insight (and optional benchmarks) into the playbook.
-
-    Creates up to 3 bullets per insight:
-    1. friction_log — what went wrong
-    2. hard_strategy — how to fix it
-    3. benchmark — industry best practice (if Yutori returned data)
-    """
+def curate_friction_log(insight: Insight, frame_url: str = "") -> None:
+    """Phase 1: Emit only the friction_log bullet. Called immediately after diagnose()."""
     playbook = load_playbook()
     evidence = _make_evidence(insight)
     now = _now()
 
-    # 1. Friction Log bullet
     friction_bullet = Bullet(
         id=str(uuid.uuid4()),
         bullet_type="friction_log",
@@ -43,13 +36,20 @@ def curate(insight: Insight, benchmarks: dict, frame_url: str = "", mockup_url: 
         severity=insight.severity,
         benchmark_source="",
         frame_url=frame_url,
-        mockup_url=mockup_url,
+        mockup_url="",
         created_at=now,
         updated_at=now,
     )
-    playbook = add_or_merge_bullet(playbook, friction_bullet)
+    add_or_merge_bullet(playbook, friction_bullet)
 
-    # 2. Hard Strategy bullet
+
+def curate_strategy(insight: Insight, benchmarks: dict, frame_url: str = "") -> None:
+    """Phase 2: Emit hard_strategy + benchmark bullets. Called after suggest_fix()."""
+    playbook = load_playbook()
+    evidence = _make_evidence(insight)
+    now = _now()
+
+    # Hard Strategy bullet
     strategy_bullet = Bullet(
         id=str(uuid.uuid4()),
         bullet_type="hard_strategy",
@@ -61,13 +61,13 @@ def curate(insight: Insight, benchmarks: dict, frame_url: str = "", mockup_url: 
         severity=insight.severity,
         benchmark_source="",
         frame_url=frame_url,
-        mockup_url=mockup_url,
+        mockup_url="",
         created_at=now,
         updated_at=now,
     )
     playbook = add_or_merge_bullet(playbook, strategy_bullet)
 
-    # 3. Benchmark bullet (only if Yutori returned data)
+    # Benchmark bullet (only if Yutori returned data)
     if benchmarks and benchmarks.get("recommendation"):
         benchmark_bullet = Bullet(
             id=str(uuid.uuid4()),
@@ -83,3 +83,9 @@ def curate(insight: Insight, benchmarks: dict, frame_url: str = "", mockup_url: 
             updated_at=now,
         )
         add_or_merge_bullet(playbook, benchmark_bullet)
+
+
+def curate(insight: Insight, benchmarks: dict, frame_url: str = "", mockup_url: str = "") -> None:
+    """Convenience wrapper — calls both phases. Keeps existing callers working."""
+    curate_friction_log(insight, frame_url)
+    curate_strategy(insight, benchmarks, frame_url)

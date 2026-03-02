@@ -13,14 +13,14 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from curator import curate
+from curator import curate_friction_log, curate_strategy
 from generator import process_upload
 from learner import store_insight, get_all_memories, delete_memory, delete_all_memories
 from mockup_generator import generate_mockup
 from models import FrictionEvent
 from playbook import load_playbook, update_mockup_url
 from progress import publish, subscribe
-from reflector import reflect
+from reflector import diagnose, suggest_fix
 from yutori_client import search_benchmarks
 
 # --- Uploads directory ---
@@ -34,29 +34,41 @@ event_queue: asyncio.Queue[FrictionEvent] = asyncio.Queue()
 
 
 async def brain_pipeline():
-    """Background task: pull friction events, reflect, curate."""
+    """Background task: pull friction events, diagnose → Yutori → fix → curate."""
     while True:
         event = await event_queue.get()
         try:
             print(f"[Brain] Processing event {event.event_id}...")
-            publish("reflecting", "Brain analyzing event...")
 
-            # Step 1: Reflect (Gemini diagnosis) — this is the only blocking call before cards show
-            insight = await reflect(event)
+            # Phase 1: Diagnose (Gemini, fast — no fix yet)
+            publish("reflecting", "Diagnosing friction event...")
+            partial_insight = await diagnose(event)
 
-            # Step 2: Build frame URL
+            # Build frame URL (needed for both curation phases)
             frame_url = ""
             if event.frame_path and os.path.exists(event.frame_path):
                 rel_path = os.path.relpath(event.frame_path, UPLOAD_DIR)
                 frame_url = f"/uploads/{rel_path}"
 
-            # Step 3: Curate IMMEDIATELY — cards show up on dashboard now
-            publish("curating", f"Curated: {insight.severity} {insight.category}")
-            curate(insight, {}, frame_url=frame_url, mockup_url="")
-            print(f"[Brain] Cards live for event {event.event_id} — {insight.severity} {insight.category}")
+            # Show friction_log card immediately — problem is known
+            curate_friction_log(partial_insight, frame_url)
+            publish("curating", f"Problem identified: {partial_insight.severity} {partial_insight.category}")
+            print(f"[Brain] Friction log live for event {event.event_id}")
 
-            # Step 4: Everything below runs AFTER cards are visible
-            # Mockup + Yutori + memory storage in parallel
+            # Phase 2: Yutori research — informed by diagnosis
+            publish("researching", "Searching industry benchmarks...")
+            benchmarks = await search_benchmarks(partial_insight.root_cause, partial_insight.category)
+
+            # Phase 3: Generate fix, now grounded in research
+            publish("suggesting_fix", "Generating research-informed fix...")
+            insight = await suggest_fix(partial_insight, benchmarks)
+
+            # Show hard_strategy + benchmark cards together
+            curate_strategy(insight, benchmarks, frame_url)
+            publish("curating", "Strategy + benchmark live")
+            print(f"[Brain] Strategy live for event {event.event_id} — {insight.severity} {insight.category}")
+
+            # Phase 4: Mockup + memory in parallel
             async def do_mockup():
                 if not frame_url or not event.frame_path:
                     return
@@ -75,15 +87,6 @@ async def brain_pipeline():
                     print(f"[Brain] Mockup generation failed: {e}")
                     publish("mockup_failed", "Mockup generation failed")
 
-            async def do_benchmarks():
-                try:
-                    benchmarks = await search_benchmarks(insight.root_cause, insight.category)
-                    if benchmarks and benchmarks.get("recommendation"):
-                        curate(insight, benchmarks, frame_url=frame_url, mockup_url="")
-                        print(f"[Brain] Benchmarks added for {insight.category}")
-                except Exception as e:
-                    print(f"[Brain] Benchmark search failed: {e}")
-
             async def do_memory():
                 try:
                     await store_insight(insight)
@@ -91,7 +94,7 @@ async def brain_pipeline():
                 except Exception as e:
                     print(f"[Brain] Failed to store insight in mem0: {e}")
 
-            await asyncio.gather(do_mockup(), do_benchmarks(), do_memory())
+            await asyncio.gather(do_mockup(), do_memory())
             print(f"[Brain] Fully done with event {event.event_id}")
 
         except Exception as e:
